@@ -312,30 +312,36 @@ class RequestFactoryTest extends TestCase
     /**
      * @return void
      */
-    public function testBuildFlowWithQueryDashParams()
+    public function testBuildFlowWithUnderscoreAndDashParams(): void
     {
         $baseUrl = 'baseUrl';
-        $routeString = '/routeString?first-param={first-param}&second-param=ignored value';
-        $originParamValue = 'value with whitespaces';
+        $routeString = '/{first-param}?second_param={second_param}&third-param={thirdParam}';
+        $firstParamValue = 12345;
+        $secondParamValue = 'value with whitespaces';
+        $thirdParamValue = 'https://www.auto1.com/';
         $requestMethod = 'GET';
         $requestBody = '';
 
-        $expectedUri = 'baseUrl/routeString?first-param=value+with+whitespaces&second-param=ignored value';
+        $expectedUri = 'baseUrl/12345?second_param=value+with+whitespaces&third-param=https%3A%2F%2Fwww.auto1.com%2F';
 
         $endpointProphecy = $this->prophesize(EndpointInterface::class);
-        $endpointProphecy->getBaseUrl()
+        $endpointProphecy
+            ->getBaseUrl()
             ->willReturn($baseUrl)
             ->shouldBeCalled()
         ;
-        $endpointProphecy->getPath()
+        $endpointProphecy
+            ->getPath()
             ->willReturn($routeString)
             ->shouldBeCalled()
         ;
-        $endpointProphecy->getMethod()
+        $endpointProphecy
+            ->getMethod()
             ->willReturn($requestMethod)
             ->shouldBeCalled()
         ;
-        $endpointProphecy->getRequestFormat()
+        $endpointProphecy
+            ->getRequestFormat()
             ->willReturn(EndpointInterface::FORMAT_JSON)
             ->shouldBeCalled()
         ;
@@ -346,12 +352,24 @@ class RequestFactoryTest extends TestCase
 
         // Mock non existing method of ServiceRequest `getParam`
         $serviceRequest = $this->getMockBuilder(ServiceRequestInterface::class)
-            ->setMethods(['getFirstParam'])
+            ->addMethods(['getFirstParam', 'getSecondParam', 'getThirdParam'])
             ->getMock();
 
         $serviceRequest
+            ->expects($this->once())
             ->method('getFirstParam')
-            ->willReturn($originParamValue);
+            ->willReturn($firstParamValue);
+
+        $serviceRequest
+            ->expects($this->once())
+            ->method('getSecondParam')
+            ->willReturn($secondParamValue);
+
+        $serviceRequest
+            ->expects($this->once())
+            ->method('getThirdParam')
+            ->willReturn($thirdParamValue);
+
 
         $this->endpointRegistryProphecy
             ->getEndpoint($serviceRequest)
@@ -402,9 +420,6 @@ class RequestFactoryTest extends TestCase
             false
         );
 
-        self::assertInstanceOf(
-            RequestInterface::class,
-            $requestBuilder->create($serviceRequest)
-        );
+        $this->assertInstanceOf(RequestInterface::class, $requestBuilder->create($serviceRequest));
     }
 }

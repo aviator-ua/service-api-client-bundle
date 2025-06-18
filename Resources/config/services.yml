@@ -123,6 +123,10 @@ services:
         autowire: true
         autoconfigure: true
         class: Auto1\ServiceAPIClientBundle\Service\SymfonyDeserializer
+        arguments:
+            - '@auto1.api.response.serializer'
+
+    Auto1\ServiceAPIClientBundle\Service\DeserializerInterface: '@auto1.api.symfony.deserializer'
 
     # discovery
     auto1.api.http_client:

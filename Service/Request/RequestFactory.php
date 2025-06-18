@@ -7,6 +7,7 @@
 * For the full copyright and license information, please view the LICENSE
 * file that was distributed with this source code.
 */
+
 namespace Auto1\ServiceAPIClientBundle\Service\Request;
 
 use Auto1\ServiceAPIComponentsBundle\Exception\Request\InvalidArgumentException;
@@ -19,6 +20,7 @@ use Http\Message\UriFactory;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UriInterface;
+use Psr\Log\LoggerAwareInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Serializer\SerializerInterface;
 use Auto1\ServiceAPIRequest\ServiceRequestInterface;
@@ -26,7 +28,7 @@ use Auto1\ServiceAPIRequest\ServiceRequestInterface;
 /**
  * Class RequestFactory.
  */
-class RequestFactory implements RequestFactoryInterface
+class RequestFactory implements RequestFactoryInterface, LoggerAwareInterface
 {
     use LoggerAwareTrait;
 
@@ -139,8 +141,8 @@ class RequestFactory implements RequestFactoryInterface
         //check for placeholders
         preg_match_all('/{([\w-]*)}/', $path, $matches);
         foreach ($matches[0] as $index => $placeholder) {
-            $key = $matches[1][$index];
-            $getterMethod = 'get'.str_replace('-', '', ucwords($key, '-'));
+            $property = $matches[1][$index];
+            $getterMethod = $this->getGetterMethodName($property);
             if (!method_exists($serviceRequest, $getterMethod)) {
                 $message = 'Invalid request path argumentAlias';
                 $errorCode = Response::HTTP_BAD_REQUEST;
@@ -148,7 +150,7 @@ class RequestFactory implements RequestFactoryInterface
                 throw new InvalidArgumentException($message, $errorCode);
             }
             $value = $serviceRequest->$getterMethod();
-            $value = array_key_exists($key, $queryParams) ? urlencode((string)$value) : $value;
+            $value = array_key_exists($property, $queryParams) ? urlencode((string)$value) : $value;
             $path = str_replace($placeholder, $value, $path);
         }
 
@@ -162,9 +164,14 @@ class RequestFactory implements RequestFactoryInterface
         return $this->uriFactory->createUri($baseUrl.$path);
     }
 
+    private function getGetterMethodName(string $property): string
+    {
+        return 'get'.str_replace(['-', '_'], '', ucwords($property, '-_'));
+    }
+
     /**
      * @param ServiceRequestInterface $serviceRequest
-     * @param EndpointInterface $endpoint
+     * @param EndpointInterface       $endpoint
      * @return mixed
      */
     private function getRequestBody(ServiceRequestInterface $serviceRequest, EndpointInterface $endpoint)
