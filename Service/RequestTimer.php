@@ -46,7 +46,7 @@ class RequestTimer implements LoggerAwareInterface
 
         try {
             $startTime = $this->ongoingRequests[$request];
-            $this->ongoingRequests->detach($request);
+            $this->ongoingRequests->offsetUnset($request);
         } catch (\UnexpectedValueException $e) {
             $startTime = $endTime;
 

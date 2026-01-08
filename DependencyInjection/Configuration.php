@@ -25,7 +25,7 @@ class Configuration implements ConfigurationInterface
     /**
      * {@inheritdoc}
      */
-    public function getConfigTreeBuilder()
+    public function getConfigTreeBuilder(): TreeBuilder
     {
         //Support for < 4.2
         if (method_exists(TreeBuilder::class, 'root')) {
