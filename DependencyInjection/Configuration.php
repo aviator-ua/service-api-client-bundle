@@ -59,6 +59,14 @@ class Configuration implements ConfigurationInterface
                             self::KEY_FORMAT => 'stream',
                         ],
                         [
+                            self::KEY_SERVICE => 'auto1.api.request.visitor.content_type.multipart',
+                            self::KEY_FORMAT => 'multipart',
+                        ],
+                        [
+                            self::KEY_SERVICE => 'auto1.api.request.visitor.accept.json',
+                            self::KEY_FORMAT => 'multipart',
+                        ],
+                        [
                             self::KEY_SERVICE => 'auto1.api.request.visitor.content_type.url',
                             self::KEY_FORMAT => 'url',
                         ],

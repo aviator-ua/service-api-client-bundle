@@ -30,6 +30,19 @@ You can also TAG services with '**auto1.api.request_visitor**' to make them visi
 - **strict_mode** - boolean, ```false``` by default. If it is ```true``` the request factory ignores any request body for GET, HEAD, OPTIONS and TRACE HTTP methods. 
 In other words, client will always send such requests without body.
 
+## Request body factories
+The request body is built by services tagged with `auto1.api.request_body_factory`
+(implementing `RequestBodyFactoryInterface`). They are resolved first-match by
+descending tag `priority`, so a new request format can be supported by adding a
+tagged service without changing the request factory. The bundle ships factories
+for raw PSR-7 streams, `multipart/form-data`, and a default that serializes by
+the endpoint's `requestFormat` (`json`, `url`, ...).
+
+## Logging
+The bundle logs through the `psr/log` abstraction and uses the application's
+`logger` service when present (e.g. MonologBundle). If no `logger` service is
+registered, it falls back to a `Psr\Log\NullLogger`, so logging is optional.
+
 ## Example of EP definition (yaml): 
 ```yaml
 postUnicorn:
@@ -68,6 +81,62 @@ class PostUnicorn implements ServiceRequestInterface
     }
 }
 
+```
+
+## Multipart / file uploads
+Set `requestFormat: multipart` on the endpoint and declare file fields on the
+request DTO as `\Psr\Http\Message\StreamInterface`. Stream values — whether a
+top-level property or an element of an array/collection (a `files[]` field) — are
+sent as file parts; the filename and `Content-Type` of each file part are taken
+from the stream metadata (`filename` / `mime-type`), falling back to the field
+name and `application/octet-stream`. Other fields are serialized through the
+request normalizer (so dates and value objects are formatted the same way as for
+other formats) and nested objects/arrays are flattened into `name[child]` field
+names. A stream nested inside an object is not detected as a file part.
+
+This requires a PSR-7 implementation (e.g. `nyholm/psr7` or `guzzlehttp/psr7`) to
+be installed; the bundle discovers its PSR-17 factories automatically.
+
+```yaml
+uploadDocument:
+    method:        'POST'
+    baseUrl:       'http://google.com'
+    path:          '/v1/documents'
+    requestFormat: 'multipart'
+    requestClass:  'Auto1\ServiceDTOCollection\Documents\Request\UploadDocument'
+    responseClass: 'Auto1\ServiceDTOCollection\Documents\Response\Document'
+```
+
+```php
+class UploadDocument implements ServiceRequestInterface
+{
+    private $file;        // \Psr\Http\Message\StreamInterface -> file part
+    private $description; // string -> form field
+
+    public function setFile(\Psr\Http\Message\StreamInterface $file): self
+    {
+        $this->file = $file;
+
+        return $this;
+    }
+
+    public function getFile(): ?\Psr\Http\Message\StreamInterface
+    {
+        return $this->file;
+    }
+
+    public function setDescription(string $description): self
+    {
+        $this->description = $description;
+
+        return $this;
+    }
+
+    public function getDescription(): ?string
+    {
+        return $this->description;
+    }
+}
 ```
 
 ## Example of Repository implementation:
