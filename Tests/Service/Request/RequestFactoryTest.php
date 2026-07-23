@@ -14,12 +14,15 @@ namespace Auto1\ServiceAPIClientBundle\Tests\Service;
 use Auto1\ServiceAPIComponentsBundle\Exception\Request\InvalidArgumentException;
 use Auto1\ServiceAPIComponentsBundle\Service\Endpoint\EndpointInterface;
 use Auto1\ServiceAPIComponentsBundle\Service\Endpoint\EndpointRegistryInterface;
-use Http\Message\MessageFactory;
-use Http\Message\UriFactory;
 use PHPUnit\Framework\TestCase;
+use Prophecy\Argument;
 use Prophecy\Prophecy\ObjectProphecy;
 use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\RequestFactoryInterface as PsrRequestFactoryInterface;
+use Psr\Http\Message\StreamInterface;
+use Psr\Http\Message\StreamFactoryInterface as PsrStreamFactoryInterface;
 use Psr\Http\Message\UriInterface;
+use Psr\Http\Message\UriFactoryInterface as PsrUriFactoryInterface;
 use Symfony\Component\Serializer\SerializerInterface;
 use Auto1\ServiceAPIClientBundle\Service\Request\RequestVisitorRegistry;
 use Auto1\ServiceAPIClientBundle\Service\Request\RequestVisitorRegistryInterface;
@@ -58,14 +61,19 @@ class RequestFactoryTest extends TestCase
     private $requestDecoratorProphecy;
 
     /**
-     * @var UriFactory|ObjectProphecy
+     * @var PsrUriFactoryInterface|ObjectProphecy
      */
     private $uriFactoryProphecy;
 
     /**
-     * @var MessageFactory|ObjectProphecy
+     * @var PsrRequestFactoryInterface|ObjectProphecy
      */
-    private $messageFactoryProphecy;
+    private $requestFactoryProphecy;
+
+    /**
+     * @var PsrStreamFactoryInterface|ObjectProphecy
+     */
+    private $streamFactoryProphecy;
 
     /**
      * {@inheritdoc}
@@ -77,8 +85,9 @@ class RequestFactoryTest extends TestCase
         $this->serializerProphecy = $this->prophesize(SerializerInterface::class);
         $this->requestVisitorRegistryProphecy = $this->prophesize(RequestVisitorRegistryInterface::class);
         $this->requestDecoratorProphecy = $this->prophesize(RequestVisitorInterface::class);
-        $this->uriFactoryProphecy = $this->prophesize(UriFactory::class);
-        $this->messageFactoryProphecy = $this->prophesize(MessageFactory::class);
+        $this->uriFactoryProphecy = $this->prophesize(PsrUriFactoryInterface::class);
+        $this->requestFactoryProphecy = $this->prophesize(PsrRequestFactoryInterface::class);
+        $this->streamFactoryProphecy = $this->prophesize(PsrStreamFactoryInterface::class);
     }
 
     /**
@@ -110,7 +119,9 @@ class RequestFactoryTest extends TestCase
         $endpoint = $endpointProphecy->reveal();
 
         $uri = $this->prophesize(UriInterface::class)->reveal();
-        $request = $this->prophesize(RequestInterface::class)->reveal();
+        $requestProphecy = $this->prophesize(RequestInterface::class);
+        $request = $requestProphecy->reveal();
+        $stream = $this->prophesize(StreamInterface::class)->reveal();
 
         $this->endpointRegistryProphecy
             ->getEndpoint($this->serviceRequestProphecy->reveal())
@@ -130,13 +141,20 @@ class RequestFactoryTest extends TestCase
             ->shouldBeCalled()
         ;
 
-        $this->messageFactoryProphecy
-            ->createRequest(
-                $requestMethod,
-                $uri,
-                [],
-                $requestBody,
-            )
+        $this->requestFactoryProphecy
+            ->createRequest($requestMethod, $uri)
+            ->willReturn($request)
+            ->shouldBeCalled()
+        ;
+
+        $this->streamFactoryProphecy
+            ->createStream($requestBody)
+            ->willReturn($stream)
+            ->shouldBeCalled()
+        ;
+
+        $requestProphecy
+            ->withBody($stream)
             ->willReturn($request)
             ->shouldBeCalled()
         ;
@@ -158,7 +176,8 @@ class RequestFactoryTest extends TestCase
             $this->serializerProphecy->reveal(),
             $this->requestVisitorRegistryProphecy->reveal(),
             $this->uriFactoryProphecy->reveal(),
-            $this->messageFactoryProphecy->reveal(),
+            $this->requestFactoryProphecy->reveal(),
+            $this->streamFactoryProphecy->reveal(),
             false
         );
 
@@ -201,7 +220,9 @@ class RequestFactoryTest extends TestCase
         $endpoint = $endpointProphecy->reveal();
 
         $uri = $this->prophesize(UriInterface::class)->reveal();
-        $request = $this->prophesize(RequestInterface::class)->reveal();
+        $requestProphecy = $this->prophesize(RequestInterface::class);
+        $request = $requestProphecy->reveal();
+        $stream = $this->prophesize(StreamInterface::class)->reveal();
 
         // Mock non existing method of ServiceRequest `getParam`
         $serviceRequest = $this->getMockBuilder(ServiceRequestInterface::class)
@@ -230,13 +251,20 @@ class RequestFactoryTest extends TestCase
             ->shouldBeCalled()
         ;
 
-        $this->messageFactoryProphecy
-            ->createRequest(
-                $requestMethod,
-                $uri,
-                [],
-                $requestBody,
-            )
+        $this->requestFactoryProphecy
+            ->createRequest($requestMethod, $uri)
+            ->willReturn($request)
+            ->shouldBeCalled()
+        ;
+
+        $this->streamFactoryProphecy
+            ->createStream($requestBody)
+            ->willReturn($stream)
+            ->shouldBeCalled()
+        ;
+
+        $requestProphecy
+            ->withBody($stream)
             ->willReturn($request)
             ->shouldBeCalled()
         ;
@@ -257,7 +285,8 @@ class RequestFactoryTest extends TestCase
             $this->serializerProphecy->reveal(),
             $this->requestVisitorRegistryProphecy->reveal(),
             $this->uriFactoryProphecy->reveal(),
-            $this->messageFactoryProphecy->reveal(),
+            $this->requestFactoryProphecy->reveal(),
+            $this->streamFactoryProphecy->reveal(),
             false
         );
 
@@ -299,7 +328,8 @@ class RequestFactoryTest extends TestCase
             $this->serializerProphecy->reveal(),
             $this->requestVisitorRegistryProphecy->reveal(),
             $this->uriFactoryProphecy->reveal(),
-            $this->messageFactoryProphecy->reveal(),
+            $this->requestFactoryProphecy->reveal(),
+            $this->streamFactoryProphecy->reveal(),
             false
         );
 
@@ -348,7 +378,9 @@ class RequestFactoryTest extends TestCase
         $endpoint = $endpointProphecy->reveal();
 
         $uri = $this->prophesize(UriInterface::class)->reveal();
-        $request = $this->prophesize(RequestInterface::class)->reveal();
+        $requestProphecy = $this->prophesize(RequestInterface::class);
+        $request = $requestProphecy->reveal();
+        $stream = $this->prophesize(StreamInterface::class)->reveal();
 
         // Mock non existing method of ServiceRequest `getParam`
         $serviceRequest = $this->getMockBuilder(ServiceRequestInterface::class)
@@ -389,13 +421,20 @@ class RequestFactoryTest extends TestCase
             ->shouldBeCalled()
         ;
 
-        $this->messageFactoryProphecy
-            ->createRequest(
-                $requestMethod,
-                $uri,
-                [],
-                $requestBody,
-            )
+        $this->requestFactoryProphecy
+            ->createRequest($requestMethod, $uri)
+            ->willReturn($request)
+            ->shouldBeCalled()
+        ;
+
+        $this->streamFactoryProphecy
+            ->createStream($requestBody)
+            ->willReturn($stream)
+            ->shouldBeCalled()
+        ;
+
+        $requestProphecy
+            ->withBody($stream)
             ->willReturn($request)
             ->shouldBeCalled()
         ;
@@ -416,10 +455,103 @@ class RequestFactoryTest extends TestCase
             $this->serializerProphecy->reveal(),
             $this->requestVisitorRegistryProphecy->reveal(),
             $this->uriFactoryProphecy->reveal(),
-            $this->messageFactoryProphecy->reveal(),
+            $this->requestFactoryProphecy->reveal(),
+            $this->streamFactoryProphecy->reveal(),
             false
         );
 
         $this->assertInstanceOf(RequestInterface::class, $requestBuilder->create($serviceRequest));
+    }
+
+    /**
+     * In strict mode a body-less method (GET/HEAD/OPTIONS/TRACE) must produce no request body,
+     * so neither the stream factory nor `withBody()` should be touched.
+     *
+     * @return void
+     */
+    public function testBuildFlowSkipsBodyForBodilessMethodInStrictMode(): void
+    {
+        $baseUrl = 'baseUrl';
+        $routeString = 'routeString';
+        $requestMethod = 'GET';
+
+        $endpointProphecy = $this->prophesize(EndpointInterface::class);
+        $endpointProphecy->getBaseUrl()
+            ->willReturn($baseUrl)
+            ->shouldBeCalled()
+        ;
+        $endpointProphecy->getPath()
+            ->willReturn($routeString)
+            ->shouldBeCalled()
+        ;
+        $endpointProphecy->getMethod()
+            ->willReturn($requestMethod)
+            ->shouldBeCalled()
+        ;
+        $endpointProphecy->getRequestFormat()
+            ->willReturn(EndpointInterface::FORMAT_JSON)
+            ->shouldBeCalled()
+        ;
+        $endpoint = $endpointProphecy->reveal();
+
+        $uri = $this->prophesize(UriInterface::class)->reveal();
+        $requestProphecy = $this->prophesize(RequestInterface::class);
+        $request = $requestProphecy->reveal();
+
+        $this->endpointRegistryProphecy
+            ->getEndpoint($this->serviceRequestProphecy->reveal())
+            ->willReturn($endpoint)
+            ->shouldBeCalled()
+        ;
+
+        // Body-less method in strict mode: the serializer must not be asked for a body at all.
+        $this->serializerProphecy
+            ->serialize(Argument::cetera())
+            ->shouldNotBeCalled()
+        ;
+
+        $this->uriFactoryProphecy
+            ->createUri($baseUrl . $routeString)
+            ->willReturn($uri)
+            ->shouldBeCalled()
+        ;
+
+        $this->requestFactoryProphecy
+            ->createRequest($requestMethod, $uri)
+            ->willReturn($request)
+            ->shouldBeCalled()
+        ;
+
+        // No body => no stream created and no withBody() call.
+        $this->streamFactoryProphecy
+            ->createStream(Argument::any())
+            ->shouldNotBeCalled()
+        ;
+
+        $requestProphecy
+            ->withBody(Argument::any())
+            ->shouldNotBeCalled()
+        ;
+
+        $this->requestVisitorRegistryProphecy
+            ->getRegisteredRequestVisitors(EndpointInterface::FORMAT_JSON)
+            ->willReturn([])
+            ->shouldBeCalled()
+        ;
+
+        $requestBuilder = new RequestFactory(
+            $this->endpointRegistryProphecy->reveal(),
+            $this->serializerProphecy->reveal(),
+            $this->requestVisitorRegistryProphecy->reveal(),
+            $this->uriFactoryProphecy->reveal(),
+            $this->requestFactoryProphecy->reveal(),
+            $this->streamFactoryProphecy->reveal(),
+            true
+        );
+
+        self::assertInstanceOf(
+            RequestInterface::class,
+            $requestBuilder->create($this->serviceRequestProphecy->reveal())
+        );
     }
 }

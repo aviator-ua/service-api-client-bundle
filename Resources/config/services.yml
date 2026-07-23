@@ -80,7 +80,8 @@ services:
             - '@auto1.api.request.serializer'
             - '@auto1.api.request.visitor.registry'
             - '@auto1.api.uri_factory'
-            - '@auto1.api.message_factory'
+            - '@auto1.api.request_factory'
+            - '@auto1.api.stream_factory'
             - '%auto1_service_api_client.strict_mode%'
         calls:
             - [setLogger, ['@logger']]
@@ -138,9 +139,13 @@ services:
         factory: Http\Discovery\HttpAsyncClientDiscovery::find
 
     auto1.api.uri_factory:
-        class: Http\Message\UriFactory
-        factory: Http\Discovery\UriFactoryDiscovery::find
+        class: Psr\Http\Message\UriFactoryInterface
+        factory: Http\Discovery\Psr17FactoryDiscovery::findUriFactory
 
-    auto1.api.message_factory:
-        class: Http\Message\MessageFactory
-        factory: Http\Discovery\MessageFactoryDiscovery::find
+    auto1.api.request_factory:
+        class: Psr\Http\Message\RequestFactoryInterface
+        factory: Http\Discovery\Psr17FactoryDiscovery::findRequestFactory
+
+    auto1.api.stream_factory:
+        class: Psr\Http\Message\StreamFactoryInterface
+        factory: Http\Discovery\Psr17FactoryDiscovery::findStreamFactory

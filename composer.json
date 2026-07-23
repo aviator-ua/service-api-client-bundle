@@ -28,11 +28,11 @@
         "symfony/property-info": "~5.0|~6.0|~7.0",
         "monolog/monolog": "^1.22|^2.0|^3.0",
         "php-http/client-common": "^2.3",
-        "php-http/discovery": "^1.3",
+        "php-http/discovery": "^1.7",
         "php-http/httplug": "^2.2",
-        "psr/http-message": "^1.0",
-        "psr/log": "^1.1|^2.0|^3.0",
-        "php-http/message-factory": "^1.1"
+        "psr/http-message": "^1.0|^2.0",
+        "psr/http-factory": "^1.0",
+        "psr/log": "^1.1|^2.0|^3.0"
     },
     "require-dev": {
         "symfony/yaml": "~5.0|~6.0|~7.0",

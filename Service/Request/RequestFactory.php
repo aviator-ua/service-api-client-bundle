@@ -15,11 +15,12 @@ use Auto1\ServiceAPIComponentsBundle\Exception\Request\MalformedRequestException
 use Auto1\ServiceAPIComponentsBundle\Service\Endpoint\EndpointRegistryInterface;
 use Auto1\ServiceAPIComponentsBundle\Service\Endpoint\EndpointInterface;
 use Auto1\ServiceAPIComponentsBundle\Service\Logger\LoggerAwareTrait;
-use Http\Message\MessageFactory;
-use Http\Message\UriFactory;
 use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\RequestFactoryInterface as PsrRequestFactoryInterface;
 use Psr\Http\Message\StreamInterface;
+use Psr\Http\Message\StreamFactoryInterface as PsrStreamFactoryInterface;
 use Psr\Http\Message\UriInterface;
+use Psr\Http\Message\UriFactoryInterface as PsrUriFactoryInterface;
 use Psr\Log\LoggerAwareInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Serializer\SerializerInterface;
@@ -50,14 +51,19 @@ class RequestFactory implements RequestFactoryInterface, LoggerAwareInterface
     private $requestVisitorRegistry;
 
     /**
-     * @var UriFactory
+     * @var PsrUriFactoryInterface
      */
     private $uriFactory;
 
     /**
-     * @var MessageFactory
+     * @var PsrRequestFactoryInterface
      */
-    private $messageFactory;
+    private $requestFactory;
+
+    /**
+     * @var PsrStreamFactoryInterface
+     */
+    private $streamFactory;
 
     /**
      * @var bool
@@ -70,23 +76,26 @@ class RequestFactory implements RequestFactoryInterface, LoggerAwareInterface
      * @param EndpointRegistryInterface       $endpointRegistry
      * @param SerializerInterface             $serializer
      * @param RequestVisitorRegistryInterface $requestVisitorRegistry
-     * @param UriFactory                      $uriFactory
-     * @param MessageFactory                  $messageFactory
+     * @param PsrUriFactoryInterface          $uriFactory
+     * @param PsrRequestFactoryInterface      $requestFactory
+     * @param PsrStreamFactoryInterface       $streamFactory
      * @param bool                            $strictModeEnabled
      */
     public function __construct(
         EndpointRegistryInterface $endpointRegistry,
         SerializerInterface $serializer,
         RequestVisitorRegistryInterface $requestVisitorRegistry,
-        UriFactory $uriFactory,
-        MessageFactory $messageFactory,
+        PsrUriFactoryInterface $uriFactory,
+        PsrRequestFactoryInterface $requestFactory,
+        PsrStreamFactoryInterface $streamFactory,
         bool $strictModeEnabled = false
     ) {
         $this->endpointRegistry = $endpointRegistry;
         $this->serializer = $serializer;
         $this->requestVisitorRegistry = $requestVisitorRegistry;
         $this->uriFactory = $uriFactory;
-        $this->messageFactory = $messageFactory;
+        $this->requestFactory = $requestFactory;
+        $this->streamFactory = $streamFactory;
         $this->strictModeEnabled = $strictModeEnabled;
     }
 
@@ -101,12 +110,15 @@ class RequestFactory implements RequestFactoryInterface, LoggerAwareInterface
         $uri = $this->getRequestUri($serviceRequest);
         $requestBody = $this->getRequestBody($serviceRequest, $endpoint);
 
-        $httpRequest = $this->messageFactory->createRequest(
-            $endpoint->getMethod(),
-            $uri,
-            [],
-            $requestBody
-        );
+        $httpRequest = $this->requestFactory->createRequest($endpoint->getMethod(), $uri);
+
+        if (null !== $requestBody) {
+            $body = $requestBody instanceof StreamInterface
+                ? $requestBody
+                : $this->streamFactory->createStream((string) $requestBody);
+
+            $httpRequest = $httpRequest->withBody($body);
+        }
 
         return $this->visitRequest($httpRequest, $endpoint->getRequestFormat());
     }

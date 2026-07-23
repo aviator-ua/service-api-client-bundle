@@ -3,6 +3,18 @@ Bundle uses *php-http/httplug* client abstraction.
 So you'll need to install some psr7-compatible client into your project to be used by this bundle.
 For more details: [php-http/httplug clients and adapters](http://docs.php-http.org/en/latest/clients.html).
 
+This bundle builds requests via [PSR-17](https://www.php-fig.org/psr/psr-17/) HTTP factories, discovered
+with `Http\Discovery\Psr17FactoryDiscovery`. Your project therefore also needs a discoverable PSR-17
+factory implementation (for example `nyholm/psr7`, or `guzzlehttp/psr7` **>= 2.0** — the PSR-17 factory
+was introduced in Guzzle PSR-7 2.0, so `1.x` is not enough).
+
+> **Upgrade note:** `Service\Request\RequestFactory` no longer depends on the abandoned
+> `php-http/message-factory`. Its constructor now takes PSR-17 factories
+> (`Psr\Http\Message\UriFactoryInterface`, `RequestFactoryInterface`, `StreamFactoryInterface`)
+> instead of `Http\Message\UriFactory` + `Http\Message\MessageFactory`. If you instantiate or
+> re-register this service yourself, update the wiring — the container service
+> `auto1.api.message_factory` was replaced by `auto1.api.request_factory` and `auto1.api.stream_factory`.
+
 
 ## config.yml
 ```yaml
