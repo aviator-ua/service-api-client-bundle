@@ -27,6 +27,18 @@ use Symfony\Component\HttpKernel\Kernel;
 class MultipartTestKernel extends Kernel
 {
     /**
+     * @var bool
+     */
+    private $withLogger;
+
+    public function __construct(string $environment, bool $debug, bool $withLogger = true)
+    {
+        parent::__construct($environment, $debug);
+
+        $this->withLogger = $withLogger;
+    }
+
+    /**
      * {@inheritdoc}
      */
     public function registerBundles(): iterable
@@ -63,7 +75,9 @@ class MultipartTestKernel extends Kernel
 
             // The bundle discovers PSR-17 factories at runtime; nyholm/psr7 (dev dep)
             // provides them, so no HTTP factory wiring is needed here.
-            $container->register('logger', NullLogger::class)->setPublic(true);
+            if ($this->withLogger) {
+                $container->register('logger', NullLogger::class)->setPublic(true);
+            }
 
             $container->register(TestEndpointProvider::class)
                 ->addTag('auto1.api.endpoint_provider', ['priority' => 0]);
@@ -79,7 +93,13 @@ class MultipartTestKernel extends Kernel
      */
     public function getCacheDir(): string
     {
-        return sys_get_temp_dir() . '/auto1_multipart_test/cache/' . spl_object_id($this);
+        return sprintf(
+            '%s/auto1_multipart_test/cache/%s_%d_%s',
+            sys_get_temp_dir(),
+            $this->environment,
+            Kernel::VERSION_ID,
+            $this->withLogger ? 'logger' : 'no_logger'
+        );
     }
 
     /**

@@ -12,14 +12,12 @@ declare(strict_types=1);
 namespace Auto1\ServiceAPIClientBundle\Tests\Service\Request\Multipart;
 
 use Auto1\ServiceAPIClientBundle\Service\Request\Multipart\MultipartStreamFactory;
-use Auto1\ServiceAPIClientBundle\Tests\Service\Request\Multipart\Fixtures\MetadataStream;
 use Auto1\ServiceAPIClientBundle\Tests\Service\Request\Multipart\Fixtures\MultipartRequestStub;
 use Auto1\ServiceAPIClientBundle\Tests\Service\Request\Multipart\Fixtures\NestedObjectStub;
-use LogicException;
+use Auto1\ServiceAPIComponentsBundle\Multipart\MetadataStream;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\PropertyAccess\PropertyAccess;
-use Symfony\Component\Serializer\NameConverter\CamelCaseToSnakeCaseNameConverter;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 /**
@@ -51,15 +49,14 @@ class MultipartStreamFactoryTest extends TestCase
         $this->factory = new MultipartStreamFactory(
             $this->streamFactory,
             $this->normalizerStub(),
-            PropertyAccess::createPropertyAccessor(),
-            new CamelCaseToSnakeCaseNameConverter(null, false)
+            PropertyAccess::createPropertyAccessor()
         );
     }
 
     /**
      * @return void
      */
-    public function testItBuildsFilePartsAndFieldParts(): void
+    public function testCreateBuildsFilePartsAndFieldParts(): void
     {
         $request = (new MultipartRequestStub())
             ->setFile(new MetadataStream($this->streamFactory->createStream('PNG-CONTENT'), 'photo.png', 'image/png'))
@@ -75,8 +72,8 @@ class MultipartStreamFactoryTest extends TestCase
         self::assertStringContainsString('Content-Type: image/png', $body);
         self::assertStringContainsString('PNG-CONTENT', $body);
 
-        // file part without metadata: filename falls back to the (snake_cased) field name, octet-stream
-        self::assertStringContainsString('name="cover_image"; filename="cover_image"', $body);
+        // file part without metadata: filename falls back to the field name, octet-stream
+        self::assertStringContainsString('name="coverImage"; filename="coverImage"', $body);
         self::assertStringContainsString('Content-Type: application/octet-stream', $body);
         self::assertStringContainsString('COVER-CONTENT', $body);
 
@@ -86,27 +83,53 @@ class MultipartStreamFactoryTest extends TestCase
         self::assertStringContainsString('name="version"', $body);
         self::assertStringContainsString('42', $body);
         self::assertStringContainsString('name="enabled"', $body);
-        self::assertStringContainsString('true', $body);
+    }
+
+    /**
+     * @dataProvider booleanWireValueProvider
+     *
+     * @return void
+     */
+    public function testCreateStringifiesBooleansAsFormFriendlyDigits(bool $enabled, string $wireValue): void
+    {
+        $request = (new MultipartRequestStub())
+            ->setEnabled($enabled);
+
+        $body = (string) $this->factory->create($request);
+
+        $pattern = sprintf('/name="enabled".*?\r\n\r\n%s\r\n/s', $wireValue);
+        self::assertRegExp($pattern, $body);
+    }
+
+    /**
+     * @return array
+     */
+    public function booleanWireValueProvider(): array
+    {
+        return [
+            'true is sent as 1' => [true, '1'],
+            'false is sent as 0' => [false, '0'],
+        ];
     }
 
     /**
      * @return void
      */
-    public function testItStringifiesValuesThroughTheNormalizer(): void
+    public function testCreateStringifiesValuesThroughTheNormalizer(): void
     {
         $request = (new MultipartRequestStub())
             ->setCreatedAt(new \DateTimeImmutable('2024-01-02 03:04:05'));
 
         $body = (string) $this->factory->create($request);
 
-        self::assertStringContainsString('name="created_at"', $body);
+        self::assertStringContainsString('name="createdAt"', $body);
         self::assertStringContainsString('2024-01-02', $body);
     }
 
     /**
      * @return void
      */
-    public function testItFlattensAnArrayOfScalars(): void
+    public function testCreateFlattensAnArrayOfScalars(): void
     {
         $request = (new MultipartRequestStub())
             ->setTags(['alpha', 'beta']);
@@ -122,10 +145,10 @@ class MultipartStreamFactoryTest extends TestCase
     /**
      * @return void
      */
-    public function testItFlattensANestedObject(): void
+    public function testCreateFlattensANestedObject(): void
     {
         $request = (new MultipartRequestStub())
-            ->setOwner(new NestedObjectStub('Alice', 'A-1'));
+            ->setOwner(new NestedObjectStub('Alice', 'A-1', 'Alice A.'));
 
         $body = (string) $this->factory->create($request);
 
@@ -133,12 +156,14 @@ class MultipartStreamFactoryTest extends TestCase
         self::assertStringContainsString('Alice', $body);
         self::assertStringContainsString('name="owner[code]"', $body);
         self::assertStringContainsString('A-1', $body);
+        self::assertStringContainsString('name="owner[displayName]"', $body);
+        self::assertStringContainsString('Alice A.', $body);
     }
 
     /**
      * @return void
      */
-    public function testItFlattensAnArrayOfObjects(): void
+    public function testCreateFlattensAnArrayOfObjects(): void
     {
         $request = (new MultipartRequestStub())
             ->setDocuments([new NestedObjectStub('first', 'D-1'), new NestedObjectStub('second', 'D-2')]);
@@ -158,7 +183,7 @@ class MultipartStreamFactoryTest extends TestCase
      *
      * @return void
      */
-    public function testItBuildsFilePartsForACollectionOfStreams(): void
+    public function testCreateBuildsFilePartsForACollectionOfStreams(): void
     {
         $request = (new MultipartRequestStub())
             ->setAttachments([
@@ -178,7 +203,7 @@ class MultipartStreamFactoryTest extends TestCase
     /**
      * @return void
      */
-    public function testItSkipsNullProperties(): void
+    public function testCreateSkipsNullProperties(): void
     {
         $request = (new MultipartRequestStub())
             ->setFile($this->streamFactory->createStream('PNG-CONTENT'));
@@ -189,13 +214,13 @@ class MultipartStreamFactoryTest extends TestCase
         self::assertStringNotContainsString('name="description"', $body);
         self::assertStringNotContainsString('name="version"', $body);
         self::assertStringNotContainsString('name="enabled"', $body);
-        self::assertStringNotContainsString('name="cover_image"', $body);
+        self::assertStringNotContainsString('name="coverImage"', $body);
     }
 
     /**
      * @return void
      */
-    public function testItProducesABodyStartingWithItsBoundary(): void
+    public function testCreateProducesABodyStartingWithItsBoundary(): void
     {
         $request = (new MultipartRequestStub())
             ->setDescription('x');
@@ -207,20 +232,47 @@ class MultipartStreamFactoryTest extends TestCase
     }
 
     /**
+     * @dataProvider unsafeFilenameProvider
+     *
      * @return void
      */
-    public function testItThrowsWhenNoStreamFactoryIsWired(): void
+    public function testCreateSanitizesTheFilenameMetadata(string $unsafeFilename, string $expectedFilename): void
     {
-        $factory = new MultipartStreamFactory(
-            null,
-            $this->normalizerStub(),
-            PropertyAccess::createPropertyAccessor(),
-            new CamelCaseToSnakeCaseNameConverter(null, false)
-        );
+        $fileStream = $this->streamFactory->createStream('FILE-CONTENT');
+        $file = new MetadataStream($fileStream, $unsafeFilename, 'text/plain');
+        $request = (new MultipartRequestStub())
+            ->setFile($file);
 
-        $this->expectException(LogicException::class);
+        $body = (string) $this->factory->create($request);
 
-        $factory->create((new MultipartRequestStub())->setDescription('x'));
+        $expectedDisposition = sprintf('name="file"; filename="%s"', $expectedFilename);
+        self::assertStringContainsString($expectedDisposition, $body);
+    }
+
+    /**
+     * @return array
+     */
+    public function unsafeFilenameProvider(): array
+    {
+        return [
+            'double quotes are stripped' => ['x"; filename="y.png', 'x; filename=y.png'],
+            'CR/LF are stripped' => ["a\r\nContent-Disposition: forged\r\n.png", 'aContent-Disposition: forged.png'],
+            'path segments are stripped' => ['../../etc/passwd', 'passwd'],
+        ];
+    }
+
+    /**
+     * @return void
+     */
+    public function testCreateSanitizesMapKeysInterpolatedIntoPartNames(): void
+    {
+        $unsafeKey = 'a"; filename="x';
+        $request = (new MultipartRequestStub())
+            ->setTags([$unsafeKey => 'value']);
+
+        $body = (string) $this->factory->create($request);
+
+        self::assertStringContainsString('name="tags[a; filename=x]"', $body);
     }
 
     /**
@@ -242,7 +294,11 @@ class MultipartStreamFactoryTest extends TestCase
             }
 
             if ($value instanceof NestedObjectStub) {
-                return ['label' => $value->getLabel(), 'code' => $value->getCode()];
+                return [
+                    'label' => $value->getLabel(),
+                    'code' => $value->getCode(),
+                    'displayName' => $value->getDisplayName(),
+                ];
             }
 
             if (is_iterable($value)) {

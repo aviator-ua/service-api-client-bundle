@@ -46,7 +46,6 @@ services:
             - '@auto1.api.stream_factory'
             - '@auto1.api.request.serializer'
             - '@serializer.property_accessor'
-            - '@auto1.api.response.transformer.name_converter.camel_case_to_snake_case'
 
     # Request body factories, resolved first-match by descending priority.
     auto1.api.request.body_factory.stream:

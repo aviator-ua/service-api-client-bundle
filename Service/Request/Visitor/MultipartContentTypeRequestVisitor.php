@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace Auto1\ServiceAPIClientBundle\Service\Request\Visitor;
 
+use Auto1\ServiceAPIComponentsBundle\Exception\Request\MalformedRequestException;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamInterface;
 
@@ -19,7 +20,9 @@ use Psr\Http\Message\StreamInterface;
  *
  * The boundary is recovered from the body itself: a multipart body always begins
  * with `--<boundary>\r\n`, so there is no shared state between the body builder
- * and this visitor.
+ * and this visitor. A body the boundary cannot be read from is an error — sending
+ * a multipart request without a Content-Type boundary would only produce an opaque
+ * 4xx on the server side.
  */
 class MultipartContentTypeRequestVisitor implements RequestVisitorInterface
 {
@@ -37,9 +40,6 @@ class MultipartContentTypeRequestVisitor implements RequestVisitorInterface
     public function visit(RequestInterface $request): RequestInterface
     {
         $boundary = $this->extractBoundary($request->getBody());
-        if (null === $boundary) {
-            return $request;
-        }
 
         return $request->withHeader(
             self::HEADER_NAME,
@@ -50,12 +50,14 @@ class MultipartContentTypeRequestVisitor implements RequestVisitorInterface
     /**
      * @param StreamInterface $body
      *
-     * @return string|null
+     * @return string
      */
-    private function extractBoundary(StreamInterface $body): ?string
+    private function extractBoundary(StreamInterface $body): string
     {
         if (!$body->isSeekable()) {
-            return null;
+            throw new MalformedRequestException(
+                'multipart/form-data request body is not seekable, the boundary cannot be read from it.'
+            );
         }
 
         $body->rewind();
@@ -63,7 +65,10 @@ class MultipartContentTypeRequestVisitor implements RequestVisitorInterface
         $body->rewind();
 
         if (0 !== strncmp($head, '--', 2)) {
-            return null;
+            throw new MalformedRequestException(
+                'multipart/form-data request body does not start with "--<boundary>"; '
+                . 'expected a body built by the multipart stream factory.'
+            );
         }
 
         $end = strpos($head, "\r\n");
@@ -71,7 +76,9 @@ class MultipartContentTypeRequestVisitor implements RequestVisitorInterface
             $end = strpos($head, "\n");
         }
         if (false === $end) {
-            return null;
+            throw new MalformedRequestException(
+                'multipart/form-data request body has no line break after the leading boundary.'
+            );
         }
 
         return substr($head, 2, $end - 2);

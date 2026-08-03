@@ -39,7 +39,7 @@ class LoggerFallbackCompilerPassTest extends TestCase
     /**
      * @return void
      */
-    public function testItRepointsTheAliasToTheApplicationLoggerWhenPresent(): void
+    public function testProcessRepointsTheAliasToTheApplicationLoggerWhenPresent(): void
     {
         $container = $this->containerWithDefaultAlias();
         $container->setDefinition('logger', new Definition(LoggerInterface::class));
@@ -52,7 +52,7 @@ class LoggerFallbackCompilerPassTest extends TestCase
     /**
      * @return void
      */
-    public function testItKeepsTheNullLoggerFallbackWhenNoApplicationLoggerExists(): void
+    public function testProcessKeepsTheNullLoggerFallbackWhenNoApplicationLoggerExists(): void
     {
         $container = $this->containerWithDefaultAlias();
 

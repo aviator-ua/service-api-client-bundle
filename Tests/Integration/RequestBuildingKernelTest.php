@@ -14,10 +14,9 @@ namespace Auto1\ServiceAPIClientBundle\Tests\Integration;
 use Auto1\ServiceAPIClientBundle\Service\Request\RequestFactoryInterface;
 use Auto1\ServiceAPIClientBundle\Tests\Integration\Fixtures\JsonRequestStub;
 use Auto1\ServiceAPIClientBundle\Tests\Integration\Kernel\MultipartTestKernel;
-use Auto1\ServiceAPIClientBundle\Tests\Service\Request\Multipart\Fixtures\MetadataStream;
 use Auto1\ServiceAPIClientBundle\Tests\Service\Request\Multipart\Fixtures\MultipartRequestStub;
 use Auto1\ServiceAPIClientBundle\Tests\Service\Request\Multipart\Fixtures\NestedObjectStub;
-use Http\Message\Formatter\FullHttpMessageFormatter;
+use Auto1\ServiceAPIComponentsBundle\Multipart\MetadataStream;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
 
@@ -28,12 +27,13 @@ use PHPUnit\Framework\TestCase;
  */
 class RequestBuildingKernelTest extends TestCase
 {
+    private const TARGET_CONTENT_TYPE_PREFIX = 'multipart/form-data; boundary=';
+    private const TARGET_BOUNDARY_PLACEHOLDER = 'BOUNDARY';
+
     /**
      * @var MultipartTestKernel
      */
     private $kernel;
-
-    private static $boundaryPlaceholder = 'BOUNDARY';
 
     /**
      * {@inheritdoc}
@@ -62,7 +62,21 @@ class RequestBuildingKernelTest extends TestCase
         self::assertInstanceOf(RequestFactoryInterface::class, $requestFactory);
     }
 
-    public function testItBuildsAMultipartRequestThroughTheWiredServices(): void
+    /**
+     * @return void
+     */
+    public function testTheContainerCompilesWithoutALoggerService(): void
+    {
+        $kernel = new MultipartTestKernel('test', true, false);
+        $kernel->boot();
+
+        $requestFactory = $kernel->getContainer()->get('test.request_factory');
+        $kernel->shutdown();
+
+        self::assertInstanceOf(RequestFactoryInterface::class, $requestFactory);
+    }
+
+    public function testCreateBuildsAMultipartRequestThroughTheWiredServices(): void
     {
         $streamFactory = new Psr17Factory();
         $createdAt = new \DateTimeImmutable('2024-01-02 03:04:05', new \DateTimeZone('UTC'));
@@ -74,7 +88,7 @@ class RequestBuildingKernelTest extends TestCase
             ->setDescription('Hello world')
             ->setCreatedAt($createdAt)
             ->setTags(['alpha', 'beta'])
-            ->setOwner(new NestedObjectStub('Alice', 'A-1'))
+            ->setOwner(new NestedObjectStub('Alice', 'A-1', 'Alice A.'))
             ->setDocuments([new NestedObjectStub('first', 'D-1'), new NestedObjectStub('second', 'D-2')]);
 
         /** @var RequestFactoryInterface $requestFactory */
@@ -82,21 +96,19 @@ class RequestBuildingKernelTest extends TestCase
 
         $request = $requestFactory->create($serviceRequest);
 
+        self::assertSame('POST', $request->getMethod());
+        self::assertSame('/v1/documents', $request->getUri()->getPath());
+
         $contentType = $request->getHeaderLine('Content-Type');
-        $contentTypeParts = explode('boundary=', $contentType);
-        $boundary = $contentTypeParts[1];
+        self::assertStringStartsWith(self::TARGET_CONTENT_TYPE_PREFIX, $contentType);
 
-        $formatter = new FullHttpMessageFormatter(null);
-        $formatted = $formatter->formatRequest($request);
-        $actual = str_replace($boundary, self::$boundaryPlaceholder, $formatted);
+        $prefixLength = strlen(self::TARGET_CONTENT_TYPE_PREFIX);
+        $boundary = substr($contentType, $prefixLength);
+        $body = (string) $request->getBody();
+        $actual = str_replace($boundary, self::TARGET_BOUNDARY_PLACEHOLDER, $body);
 
-        $b = self::$boundaryPlaceholder;
-        $expected = "POST /v1/documents HTTP/1.1\n"
-            . "Host: localhost\n"
-            . "Content-Type: multipart/form-data; boundary={$b}\n"
-            . "Accept: application/json\n"
-            . "\n"
-            . "--{$b}\r\n"
+        $b = self::TARGET_BOUNDARY_PLACEHOLDER;
+        $expected = "--{$b}\r\n"
             . "Content-Type: image/png\r\n"
             . "Content-Disposition: form-data; name=\"file\"; filename=\"photo.png\"\r\n"
             . "\r\n"
@@ -106,7 +118,7 @@ class RequestBuildingKernelTest extends TestCase
             . "\r\n"
             . "Hello world\r\n"
             . "--{$b}\r\n"
-            . "Content-Disposition: form-data; name=\"created_at\"\r\n"
+            . "Content-Disposition: form-data; name=\"createdAt\"\r\n"
             . "\r\n"
             . "2024-01-02T03:04:05+0000\r\n"
             . "--{$b}\r\n"
@@ -125,6 +137,10 @@ class RequestBuildingKernelTest extends TestCase
             . "Content-Disposition: form-data; name=\"owner[code]\"\r\n"
             . "\r\n"
             . "A-1\r\n"
+            . "--{$b}\r\n"
+            . "Content-Disposition: form-data; name=\"owner[displayName]\"\r\n"
+            . "\r\n"
+            . "Alice A.\r\n"
             . "--{$b}\r\n"
             . "Content-Disposition: form-data; name=\"documents[0][label]\"\r\n"
             . "\r\n"
@@ -146,7 +162,7 @@ class RequestBuildingKernelTest extends TestCase
         self::assertSame($expected, $actual);
     }
 
-    public function testItBuildsAJsonRequestThroughTheWiredServices(): void
+    public function testCreateBuildsAJsonRequestThroughTheWiredServices(): void
     {
         $createdAt = new \DateTimeImmutable('2024-01-02 03:04:05', new \DateTimeZone('UTC'));
 
@@ -160,16 +176,12 @@ class RequestBuildingKernelTest extends TestCase
 
         $request = $requestFactory->create($serviceRequest);
 
-        $formatter = new FullHttpMessageFormatter(null);
-        $actual = $formatter->formatRequest($request);
+        self::assertSame('POST', $request->getMethod());
+        self::assertSame('/v1/widgets', $request->getUri()->getPath());
+        self::assertSame('application/json', $request->getHeaderLine('Content-Type'));
 
-        $expected = "POST /v1/widgets HTTP/1.1\n"
-            . "Host: localhost\n"
-            . "Content-Type: application/json\n"
-            . "Accept: application/json\n"
-            . "\n"
-            . '{"name":"Widget","quantity":3,"createdAt":"2024-01-02T03:04:05+0000"}';
+        $body = (string) $request->getBody();
 
-        self::assertSame($expected, $actual);
+        self::assertSame('{"name":"Widget","quantity":3,"createdAt":"2024-01-02T03:04:05+0000"}', $body);
     }
 }

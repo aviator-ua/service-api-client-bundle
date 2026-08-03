@@ -279,7 +279,7 @@ class RequestFactoryTest extends TestCase
             ->shouldBeCalled()
         ;
         $this->streamFactoryProphecy
-            ->createStream()
+            ->createStream(Argument::any())
             ->shouldNotBeCalled()
         ;
 
@@ -419,7 +419,7 @@ class RequestFactoryTest extends TestCase
             ->shouldBeCalled()
         ;
         $this->streamFactoryProphecy
-            ->createStream()
+            ->createStream(Argument::any())
             ->shouldNotBeCalled()
         ;
 

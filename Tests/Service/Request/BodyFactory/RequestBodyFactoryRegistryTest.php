@@ -26,7 +26,7 @@ class RequestBodyFactoryRegistryTest extends TestCase
     /**
      * @return void
      */
-    public function testItReturnsTheFirstSupportingFactory(): void
+    public function testGetFactoryReturnsTheFirstSupportingFactory(): void
     {
         $request = $this->createMock(ServiceRequestInterface::class);
         $endpoint = $this->createMock(EndpointInterface::class);
@@ -44,7 +44,7 @@ class RequestBodyFactoryRegistryTest extends TestCase
     /**
      * @return void
      */
-    public function testItThrowsWhenNoFactorySupportsTheRequest(): void
+    public function testGetFactoryThrowsWhenNoFactorySupportsTheRequest(): void
     {
         $registry = new RequestBodyFactoryRegistry([$this->factory(false)]);
 

@@ -11,14 +11,14 @@ declare(strict_types=1);
 
 namespace Auto1\ServiceAPIClientBundle\Service\Request\Multipart;
 
+use Auto1\ServiceAPIComponentsBundle\Multipart\MetadataStream;
+use Auto1\ServiceAPIComponentsBundle\Service\Endpoint\EndpointInterface;
 use Auto1\ServiceAPIRequest\ServiceRequestInterface;
 use Http\Message\MultipartStream\MultipartStreamBuilder;
-use LogicException;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Message\StreamInterface;
 use ReflectionObject;
 use Symfony\Component\PropertyAccess\PropertyAccessorInterface;
-use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 /**
@@ -30,7 +30,8 @@ use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
  * property, which are emitted as `name[0]`, `name[1]`, ... file parts. Every other
  * property value is run through the request serializer's normalizer, so dates, value
  * objects and nested objects are stringified exactly as they are for the other request
- * formats; nested arrays are flattened into `name[child]` field names.
+ * formats; nested arrays are flattened into `name[child]` field names. Field names use
+ * the property names verbatim (camelCase), consistent with the JSON request format.
  *
  * The DTO is read property-by-property rather than normalized as a whole because a
  * live `StreamInterface` cannot survive `Serializer::normalize()` (on Symfony 7 a
@@ -38,11 +39,10 @@ use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
  */
 class MultipartStreamFactory implements MultipartStreamFactoryInterface
 {
-    const FORMAT = 'multipart';
     const DEFAULT_CONTENT_TYPE = 'application/octet-stream';
 
     /**
-     * @var StreamFactoryInterface|null
+     * @var StreamFactoryInterface
      */
     private $streamFactory;
 
@@ -57,28 +57,19 @@ class MultipartStreamFactory implements MultipartStreamFactoryInterface
     private $propertyAccessor;
 
     /**
-     * @var NameConverterInterface
-     */
-    private $nameConverter;
-
-    /**
-     * @param StreamFactoryInterface|null $streamFactory    PSR-17 factory; null when no
-     *                                                      PSR-7 implementation is installed.
-     * @param NormalizerInterface         $normalizer       Stringifies non-file field values
-     *                                                      (dates, value objects, nested objects).
-     * @param PropertyAccessorInterface   $propertyAccessor Resolves get/is/has/public-property access.
-     * @param NameConverterInterface      $nameConverter    Derives the wire field name from the property name.
+     * @param StreamFactoryInterface    $streamFactory    PSR-17 factory used by the multipart builder.
+     * @param NormalizerInterface       $normalizer       Stringifies non-file field values
+     *                                                    (dates, value objects, nested objects).
+     * @param PropertyAccessorInterface $propertyAccessor Resolves get/is/has/public-property access.
      */
     public function __construct(
-        ?StreamFactoryInterface $streamFactory,
+        StreamFactoryInterface $streamFactory,
         NormalizerInterface $normalizer,
-        PropertyAccessorInterface $propertyAccessor,
-        NameConverterInterface $nameConverter
+        PropertyAccessorInterface $propertyAccessor
     ) {
         $this->streamFactory = $streamFactory;
         $this->normalizer = $normalizer;
         $this->propertyAccessor = $propertyAccessor;
-        $this->nameConverter = $nameConverter;
     }
 
     /**
@@ -86,15 +77,6 @@ class MultipartStreamFactory implements MultipartStreamFactoryInterface
      */
     public function create(ServiceRequestInterface $serviceRequest): StreamInterface
     {
-        if (null === $this->streamFactory) {
-            throw new LogicException(sprintf(
-                'A PSR-17 "%s" must be wired to send multipart/form-data requests. '
-                . 'Install a PSR-7 implementation (e.g. guzzlehttp/psr7, nyholm/psr7) '
-                . 'and register its stream factory.',
-                StreamFactoryInterface::class
-            ));
-        }
-
         $builder = new MultipartStreamBuilder($this->streamFactory);
 
         foreach ($this->readProperties($serviceRequest) as $name => $value) {
@@ -128,7 +110,7 @@ class MultipartStreamFactory implements MultipartStreamFactoryInterface
         // serializer, which cannot normalize a live stream.
         if (is_iterable($value)) {
             foreach ($value as $key => $item) {
-                $this->appendValue($builder, sprintf('%s[%s]', $name, $key), $item);
+                $this->appendValue($builder, sprintf('%s[%s]', $name, $this->sanitizeName((string) $key)), $item);
             }
 
             return;
@@ -136,7 +118,7 @@ class MultipartStreamFactory implements MultipartStreamFactoryInterface
 
         // Reuse the serializer so dates/value objects/nested objects are stringified
         // the same way as for the other request formats.
-        $normalized = $this->normalizer->normalize($value, self::FORMAT);
+        $normalized = $this->normalizer->normalize($value, EndpointInterface::FORMAT_MULTIPART);
 
         $this->appendNormalized($builder, $name, $normalized);
     }
@@ -156,7 +138,7 @@ class MultipartStreamFactory implements MultipartStreamFactoryInterface
 
         if (is_iterable($value)) {
             foreach ($value as $key => $item) {
-                $this->appendNormalized($builder, sprintf('%s[%s]', $name, $key), $item);
+                $this->appendNormalized($builder, sprintf('%s[%s]', $name, $this->sanitizeName((string) $key)), $item);
             }
 
             return;
@@ -173,19 +155,54 @@ class MultipartStreamFactory implements MultipartStreamFactoryInterface
      */
     private function fileOptions(StreamInterface $stream, string $name): array
     {
-        $filename = $stream->getMetadata('filename');
-        $mimeType = $stream->getMetadata('mime-type');
+        $filename = $stream->getMetadata(MetadataStream::METADATA_FILENAME);
+        $filename = is_string($filename) ? $this->sanitizeFilename($filename) : '';
+        $mimeType = $stream->getMetadata(MetadataStream::METADATA_MIME_TYPE);
+        $mimeType = is_string($mimeType) ? $this->sanitizeName($mimeType) : '';
 
         return [
-            'filename' => is_string($filename) && '' !== $filename ? $filename : $name,
+            'filename' => '' !== $filename ? $filename : $name,
             'headers' => [
-                'Content-Type' => is_string($mimeType) && '' !== $mimeType ? $mimeType : self::DEFAULT_CONTENT_TYPE,
+                'Content-Type' => '' !== $mimeType ? $mimeType : self::DEFAULT_CONTENT_TYPE,
             ],
         ];
     }
 
     /**
-     * Maps readable DTO properties to their values, keyed by the converted (wire) field name.
+     * Strips the characters that would break out of a `name="..."` / `filename="..."`
+     * Content-Disposition parameter or terminate the header line: the stream builder
+     * interpolates these values into part headers without any escaping, so a
+     * client-controlled key or filename could otherwise forge header parameters or
+     * inject a whole extra part (CR/LF).
+     *
+     * @param string $name
+     *
+     * @return string
+     */
+    private function sanitizeName(string $name): string
+    {
+        return str_replace(["\r", "\n", '"'], '', $name);
+    }
+
+    /**
+     * @param string $filename
+     *
+     * @return string
+     */
+    private function sanitizeFilename(string $filename): string
+    {
+        // basename() here rather than in the builder: sanitize first, and do not rely
+        // on the builder's internals for a security-relevant step.
+        return basename($this->sanitizeName($filename));
+    }
+
+    /**
+     * Maps readable DTO properties to their values, keyed by property name — the wire
+     * field name is the property name verbatim, matching the JSON request format and
+     * the handler-side denormalization.
+     *
+     * Note: `ReflectionObject::getProperties()` does not see private properties of
+     * parent classes; request DTOs are assumed to be flat (as generated).
      *
      * @param ServiceRequestInterface $serviceRequest
      *
@@ -196,12 +213,16 @@ class MultipartStreamFactory implements MultipartStreamFactoryInterface
         $fields = [];
 
         foreach ((new ReflectionObject($serviceRequest))->getProperties() as $property) {
+            if ($property->isStatic()) {
+                continue;
+            }
+
             $name = $property->getName();
             if (!$this->propertyAccessor->isReadable($serviceRequest, $name)) {
                 continue;
             }
 
-            $fields[$this->nameConverter->normalize($name)] = $this->propertyAccessor->getValue($serviceRequest, $name);
+            $fields[$name] = $this->propertyAccessor->getValue($serviceRequest, $name);
         }
 
         return $fields;
@@ -214,8 +235,10 @@ class MultipartStreamFactory implements MultipartStreamFactoryInterface
      */
     private function stringify($value): string
     {
+        // '1'/'0' (not 'true'/'false') so booleans survive loosely-typed
+        // denormalization on the receiving side ('false' would coerce to true).
         if (is_bool($value)) {
-            return $value ? 'true' : 'false';
+            return $value ? '1' : '0';
         }
 
         return (string) $value;

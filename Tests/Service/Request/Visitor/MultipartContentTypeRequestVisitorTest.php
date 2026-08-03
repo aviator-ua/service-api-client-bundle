@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace Auto1\ServiceAPIClientBundle\Tests\Service\Request\Visitor;
 
 use Auto1\ServiceAPIClientBundle\Service\Request\Visitor\MultipartContentTypeRequestVisitor;
+use Auto1\ServiceAPIComponentsBundle\Exception\Request\MalformedRequestException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
@@ -44,7 +45,7 @@ class MultipartContentTypeRequestVisitorTest extends TestCase
     /**
      * @return void
      */
-    public function testItSetsContentTypeWithBoundaryReadFromBody(): void
+    public function testVisitSetsContentTypeWithBoundaryReadFromBody(): void
     {
         $boundary = 'a1b2c3d4e5';
         $body = $this->streamFactory->createStream(
@@ -68,7 +69,7 @@ class MultipartContentTypeRequestVisitorTest extends TestCase
     /**
      * @return void
      */
-    public function testItLeavesRequestUntouchedWhenBodyIsNotMultipart(): void
+    public function testVisitThrowsWhenBodyIsNotMultipart(): void
     {
         $body = $this->streamFactory->createStream('{"plain":"json"}');
 
@@ -76,13 +77,15 @@ class MultipartContentTypeRequestVisitorTest extends TestCase
         $request->method('getBody')->willReturn($body);
         $request->expects(self::never())->method('withHeader');
 
-        self::assertSame($request, $this->visitor->visit($request));
+        $this->expectException(MalformedRequestException::class);
+
+        $this->visitor->visit($request);
     }
 
     /**
      * @return void
      */
-    public function testItLeavesRequestUntouchedWhenBodyIsNotSeekable(): void
+    public function testVisitThrowsWhenBodyIsNotSeekable(): void
     {
         $body = $this->createMock(StreamInterface::class);
         $body->method('isSeekable')->willReturn(false);
@@ -91,6 +94,8 @@ class MultipartContentTypeRequestVisitorTest extends TestCase
         $request->method('getBody')->willReturn($body);
         $request->expects(self::never())->method('withHeader');
 
-        self::assertSame($request, $this->visitor->visit($request));
+        $this->expectException(MalformedRequestException::class);
+
+        $this->visitor->visit($request);
     }
 }

@@ -16,14 +16,13 @@ use Auto1\ServiceAPIComponentsBundle\Service\Endpoint\EndpointInterface;
 use Auto1\ServiceAPIRequest\ServiceRequestInterface;
 
 /**
- * Builds a streaming multipart/form-data body. Registered only when a multipart
- * stream factory is available, so it is an opt-in capability rather than a
- * hard requirement of the request factory.
+ * Builds a streaming multipart/form-data body for endpoints with
+ * `requestFormat: multipart`. Like the rest of the request building, it relies on
+ * a PSR-17 stream factory discovered via `Psr17FactoryDiscovery`, so a PSR-7
+ * implementation must be installed.
  */
 class MultipartRequestBodyFactory implements RequestBodyFactoryInterface
 {
-    const FORMAT = 'multipart';
-
     /**
      * @var MultipartStreamFactoryInterface
      */
@@ -42,7 +41,7 @@ class MultipartRequestBodyFactory implements RequestBodyFactoryInterface
      */
     public function supports(ServiceRequestInterface $serviceRequest, EndpointInterface $endpoint): bool
     {
-        return self::FORMAT === $endpoint->getRequestFormat();
+        return EndpointInterface::FORMAT_MULTIPART === $endpoint->getRequestFormat();
     }
 
     /**

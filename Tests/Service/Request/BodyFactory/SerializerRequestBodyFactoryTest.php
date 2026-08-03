@@ -21,7 +21,7 @@ class SerializerRequestBodyFactoryTest extends TestCase
 {
     private static $serializedBody = 'serialized-body';
 
-    public function testItSupportsEveryRequest(): void
+    public function testSupportsReturnsTrueForEveryRequest(): void
     {
         $serializer = $this->createMock(SerializerInterface::class);
         $request = $this->createMock(ServiceRequestInterface::class);
@@ -37,7 +37,7 @@ class SerializerRequestBodyFactoryTest extends TestCase
     /**
      * @dataProvider formatProvider
      */
-    public function testItSerializesWithTheEndpointRequestFormat(string $format): void
+    public function testCreateSerializesWithTheEndpointRequestFormat(string $format): void
     {
         $request = $this->createMock(ServiceRequestInterface::class);
         $endpoint = $this->createMock(EndpointInterface::class);

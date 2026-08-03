@@ -12,18 +12,14 @@ declare(strict_types=1);
 namespace Auto1\ServiceAPIClientBundle\Tests\Service\Request\BodyFactory;
 
 use Auto1\ServiceAPIClientBundle\Service\Request\BodyFactory\StreamRequestBodyFactory;
+use Auto1\ServiceAPIClientBundle\Tests\Service\Request\BodyFactory\Fixtures\StreamServiceRequest;
 use Auto1\ServiceAPIComponentsBundle\Service\Endpoint\EndpointInterface;
 use Auto1\ServiceAPIRequest\ServiceRequestInterface;
 use PHPUnit\Framework\TestCase;
-use Psr\Http\Message\StreamInterface;
-
-interface StreamServiceRequest extends ServiceRequestInterface, StreamInterface
-{
-}
 
 class StreamRequestBodyFactoryTest extends TestCase
 {
-    public function testItSupportsAStreamRequest(): void
+    public function testSupportsReturnsTrueForAStreamRequest(): void
     {
         $request = $this->createMock(StreamServiceRequest::class);
         $endpoint = $this->createMock(EndpointInterface::class);
@@ -35,7 +31,7 @@ class StreamRequestBodyFactoryTest extends TestCase
         self::assertTrue($supports);
     }
 
-    public function testItDoesNotSupportANonStreamRequest(): void
+    public function testSupportsReturnsFalseForANonStreamRequest(): void
     {
         $request = $this->createMock(ServiceRequestInterface::class);
         $endpoint = $this->createMock(EndpointInterface::class);
@@ -47,7 +43,7 @@ class StreamRequestBodyFactoryTest extends TestCase
         self::assertFalse($supports);
     }
 
-    public function testItReturnsTheRequestStreamUnchanged(): void
+    public function testCreateReturnsTheRequestStreamUnchanged(): void
     {
         $request = $this->createMock(StreamServiceRequest::class);
         $endpoint = $this->createMock(EndpointInterface::class);

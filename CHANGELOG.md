@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file, in reverse 
 
 ## [Unreleased]
 
+### Breaking
+
+- `Service\Request\RequestFactory::__construct()` argument 2 changed from
+  `Symfony\Component\Serializer\SerializerInterface` to
+  `RequestBodyFactoryRegistryInterface` (`auto1.api.request.body_factory.registry`).
+  Consumers of the `auto1.api.request.factory` service are unaffected; applications
+  or bundles that instantiate or re-register `RequestFactory` themselves must update
+  the wiring — the mismatch surfaces only at runtime as a `TypeError`, not at
+  container compile time.
+
 ### Added
 
 - Support for sending `multipart/form-data` requests. Endpoints with
@@ -28,9 +38,17 @@ All notable changes to this project will be documented in this file, in reverse 
 
 - Request-body construction refactored into a strategy registry.
   `RequestFactory` now depends on `RequestBodyFactoryRegistryInterface` instead
-  of the serializer directly (internal, DI-wired).
+  of the serializer directly (see Breaking above).
+- `RequestFactory::create()` no longer sets a request body when the serialized
+  body is an empty string (previously an empty stream was attached).
+- Applications overriding the `request_visitors` configuration node must add the
+  two new multipart entries (`auto1.api.request.visitor.content_type.multipart`
+  for format `multipart`, next to the existing visitors) manually — the node
+  replaces the defaults rather than merging with them.
 
 ### Dependencies
 
 - Added `php-http/multipart-stream-builder` and `symfony/property-access`
   (required to build multipart bodies).
+- `auto1-oss/service-api-components-bundle` is required at the version providing
+  `EndpointInterface::FORMAT_MULTIPART` and `Multipart\MetadataStream`.

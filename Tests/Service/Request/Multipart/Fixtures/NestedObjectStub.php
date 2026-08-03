@@ -26,10 +26,16 @@ class NestedObjectStub
      */
     private $code;
 
-    public function __construct(?string $label = null, ?string $code = null)
+    /**
+     * @var string|null
+     */
+    private $displayName;
+
+    public function __construct(?string $label = null, ?string $code = null, ?string $displayName = null)
     {
         $this->label = $label;
         $this->code = $code;
+        $this->displayName = $displayName;
     }
 
     public function getLabel(): ?string
@@ -40,5 +46,10 @@ class NestedObjectStub
     public function getCode(): ?string
     {
         return $this->code;
+    }
+
+    public function getDisplayName(): ?string
+    {
+        return $this->displayName;
     }
 }

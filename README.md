@@ -15,6 +15,12 @@ was introduced in Guzzle PSR-7 2.0, so `1.x` is not enough).
 > re-register this service yourself, update the wiring — the container service
 > `auto1.api.message_factory` was replaced by `auto1.api.request_factory` and `auto1.api.stream_factory`.
 
+> **Upgrade note:** `Service\Request\RequestFactory` now builds request bodies through a
+> `RequestBodyFactoryRegistryInterface` — its constructor's second argument replaced the
+> `Symfony\Component\Serializer\SerializerInterface`. If you instantiate or re-register this
+> service yourself, pass `auto1.api.request.body_factory.registry` (or your own registry)
+> instead of `auto1.api.request.serializer`.
+
 
 ## config.yml
 ```yaml
