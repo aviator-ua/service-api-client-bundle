@@ -23,10 +23,9 @@ class StreamRequestBodyFactoryTest extends TestCase
     {
         $request = $this->createMock(StreamServiceRequest::class);
         $endpoint = $this->createMock(EndpointInterface::class);
+        $target = $this->getCut();
 
-        $factory = new StreamRequestBodyFactory();
-
-        $supports = $factory->supports($request, $endpoint);
+        $supports = $target->supports($request, $endpoint);
 
         self::assertTrue($supports);
     }
@@ -35,10 +34,21 @@ class StreamRequestBodyFactoryTest extends TestCase
     {
         $request = $this->createMock(ServiceRequestInterface::class);
         $endpoint = $this->createMock(EndpointInterface::class);
+        $target = $this->getCut();
 
-        $factory = new StreamRequestBodyFactory();
+        $supports = $target->supports($request, $endpoint);
 
-        $supports = $factory->supports($request, $endpoint);
+        self::assertFalse($supports);
+    }
+
+    public function testSupportsReturnsFalseForAStreamRequestOnAMultipartEndpoint(): void
+    {
+        $request = $this->createMock(StreamServiceRequest::class);
+        $endpoint = $this->createMock(EndpointInterface::class);
+        $endpoint->method('getRequestFormat')->willReturn(EndpointInterface::FORMAT_MULTIPART);
+        $target = $this->getCut();
+
+        $supports = $target->supports($request, $endpoint);
 
         self::assertFalse($supports);
     }
@@ -47,11 +57,15 @@ class StreamRequestBodyFactoryTest extends TestCase
     {
         $request = $this->createMock(StreamServiceRequest::class);
         $endpoint = $this->createMock(EndpointInterface::class);
+        $target = $this->getCut();
 
-        $factory = new StreamRequestBodyFactory();
-
-        $body = $factory->create($request, $endpoint);
+        $body = $target->create($request, $endpoint);
 
         self::assertSame($request, $body);
+    }
+
+    private function getCut(): StreamRequestBodyFactory
+    {
+        return new StreamRequestBodyFactory();
     }
 }

@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace Auto1\ServiceAPIClientBundle\Tests\Integration\Kernel;
 
 use Auto1\ServiceAPIClientBundle\Tests\Integration\Fixtures\JsonRequestStub;
+use Auto1\ServiceAPIClientBundle\Tests\Service\Request\Multipart\Fixtures\ExtendedMultipartRequestStub;
 use Auto1\ServiceAPIClientBundle\Tests\Service\Request\Multipart\Fixtures\MultipartRequestStub;
 use Auto1\ServiceAPIComponentsBundle\Service\Endpoint\EndpointImmutable;
 use Auto1\ServiceAPIComponentsBundle\Service\Endpoint\EndpointProviderInterface;
@@ -34,6 +35,16 @@ class TestEndpointProvider implements EndpointProviderInterface
                 '/v1/documents',
                 'multipart',
                 MultipartRequestStub::class,
+                'json',
+                null,
+                null
+            ),
+            new EndpointImmutable(
+                'POST',
+                'http://localhost',
+                '/v1/extended-documents',
+                'multipart',
+                ExtendedMultipartRequestStub::class,
                 'json',
                 null,
                 null

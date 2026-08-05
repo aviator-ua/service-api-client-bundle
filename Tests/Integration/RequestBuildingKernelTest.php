@@ -14,6 +14,7 @@ namespace Auto1\ServiceAPIClientBundle\Tests\Integration;
 use Auto1\ServiceAPIClientBundle\Service\Request\RequestFactoryInterface;
 use Auto1\ServiceAPIClientBundle\Tests\Integration\Fixtures\JsonRequestStub;
 use Auto1\ServiceAPIClientBundle\Tests\Integration\Kernel\MultipartTestKernel;
+use Auto1\ServiceAPIClientBundle\Tests\Service\Request\Multipart\Fixtures\ExtendedMultipartRequestStub;
 use Auto1\ServiceAPIClientBundle\Tests\Service\Request\Multipart\Fixtures\MultipartRequestStub;
 use Auto1\ServiceAPIClientBundle\Tests\Service\Request\Multipart\Fixtures\NestedObjectStub;
 use Auto1\ServiceAPIComponentsBundle\Multipart\MetadataStream;
@@ -157,6 +158,39 @@ class RequestBuildingKernelTest extends TestCase
             . "Content-Disposition: form-data; name=\"documents[1][code]\"\r\n"
             . "\r\n"
             . "D-2\r\n"
+            . "--{$b}--\r\n";
+
+        self::assertSame($expected, $actual);
+    }
+
+    public function testCreateIncludesPrivateParentClassPropertiesThroughTheWiredServices(): void
+    {
+        $serviceRequest = (new ExtendedMultipartRequestStub())
+            ->setParentField('from-parent')
+            ->setOwnField('own-value');
+
+        /** @var RequestFactoryInterface $requestFactory */
+        $requestFactory = $this->kernel->getContainer()->get('test.request_factory');
+
+        $request = $requestFactory->create($serviceRequest);
+
+        $contentType = $request->getHeaderLine('Content-Type');
+        self::assertStringStartsWith(self::TARGET_CONTENT_TYPE_PREFIX, $contentType);
+
+        $prefixLength = strlen(self::TARGET_CONTENT_TYPE_PREFIX);
+        $boundary = substr($contentType, $prefixLength);
+        $body = (string) $request->getBody();
+        $actual = str_replace($boundary, self::TARGET_BOUNDARY_PLACEHOLDER, $body);
+
+        $b = self::TARGET_BOUNDARY_PLACEHOLDER;
+        $expected = "--{$b}\r\n"
+            . "Content-Disposition: form-data; name=\"ownField\"\r\n"
+            . "\r\n"
+            . "own-value\r\n"
+            . "--{$b}\r\n"
+            . "Content-Disposition: form-data; name=\"parentField\"\r\n"
+            . "\r\n"
+            . "from-parent\r\n"
             . "--{$b}--\r\n";
 
         self::assertSame($expected, $actual);

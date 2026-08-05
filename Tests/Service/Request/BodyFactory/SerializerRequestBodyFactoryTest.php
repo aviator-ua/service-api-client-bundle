@@ -19,17 +19,16 @@ use Symfony\Component\Serializer\SerializerInterface;
 
 class SerializerRequestBodyFactoryTest extends TestCase
 {
-    private static $serializedBody = 'serialized-body';
+    private const TARGET_SERIALIZED_BODY = 'serialized-body';
 
     public function testSupportsReturnsTrueForEveryRequest(): void
     {
         $serializer = $this->createMock(SerializerInterface::class);
         $request = $this->createMock(ServiceRequestInterface::class);
         $endpoint = $this->createMock(EndpointInterface::class);
+        $target = $this->getCut($serializer);
 
-        $factory = new SerializerRequestBodyFactory($serializer);
-
-        $supports = $factory->supports($request, $endpoint);
+        $supports = $target->supports($request, $endpoint);
 
         self::assertTrue($supports);
     }
@@ -42,18 +41,16 @@ class SerializerRequestBodyFactoryTest extends TestCase
         $request = $this->createMock(ServiceRequestInterface::class);
         $endpoint = $this->createMock(EndpointInterface::class);
         $endpoint->method('getRequestFormat')->willReturn($format);
-
         $serializer = $this->createMock(SerializerInterface::class);
         $serializer->expects(self::once())
             ->method('serialize')
             ->with($request, $format)
-            ->willReturn(self::$serializedBody);
+            ->willReturn(self::TARGET_SERIALIZED_BODY);
+        $target = $this->getCut($serializer);
 
-        $factory = new SerializerRequestBodyFactory($serializer);
+        $body = $target->create($request, $endpoint);
 
-        $body = $factory->create($request, $endpoint);
-
-        self::assertSame(self::$serializedBody, $body);
+        self::assertSame(self::TARGET_SERIALIZED_BODY, $body);
     }
 
     public function formatProvider(): array
@@ -63,5 +60,10 @@ class SerializerRequestBodyFactoryTest extends TestCase
             'url' => ['url'],
             'json-patch' => ['json-patch'],
         ];
+    }
+
+    private function getCut(SerializerInterface $serializer): SerializerRequestBodyFactory
+    {
+        return new SerializerRequestBodyFactory($serializer);
     }
 }

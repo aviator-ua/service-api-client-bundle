@@ -19,11 +19,15 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
  * service when it exists (e.g. MonologBundle). Otherwise the alias keeps its
  * default target — a bundle-local NullLogger — so the bundle still compiles in an
  * application that provides no logger.
+ *
+ * Only the bundle's own NullLogger default is replaced: an application that
+ * re-points the alias (or redefines the service id) keeps its override.
  */
 class LoggerFallbackCompilerPass implements CompilerPassInterface
 {
     const ALIAS = 'auto1.api.logger';
     const LOGGER = 'logger';
+    const NULL_LOGGER = 'auto1.api.logger.null';
 
     /**
      * {@inheritdoc}
@@ -31,6 +35,14 @@ class LoggerFallbackCompilerPass implements CompilerPassInterface
     public function process(ContainerBuilder $container)
     {
         if (!$container->has(self::LOGGER)) {
+            return;
+        }
+
+        if (!$container->hasAlias(self::ALIAS)) {
+            return;
+        }
+
+        if (self::NULL_LOGGER !== (string) $container->getAlias(self::ALIAS)) {
             return;
         }
 

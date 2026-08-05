@@ -18,49 +18,44 @@ use Auto1\ServiceAPIRequest\ServiceRequestInterface;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Class RequestBodyFactoryRegistryTest.
- */
 class RequestBodyFactoryRegistryTest extends TestCase
 {
-    /**
-     * @return void
-     */
     public function testGetFactoryReturnsTheFirstSupportingFactory(): void
     {
         $request = $this->createMock(ServiceRequestInterface::class);
         $endpoint = $this->createMock(EndpointInterface::class);
-
         $skipped = $this->factory(false);
         $skipped->expects(self::never())->method('create');
-
         $expected = $this->factory(true);
+        $alsoSupporting = $this->factory(true);
+        $target = $this->getCut([$skipped, $expected, $alsoSupporting]);
 
-        $registry = new RequestBodyFactoryRegistry([$skipped, $expected, $this->factory(true)]);
+        $actual = $target->getFactory($request, $endpoint);
 
-        self::assertSame($expected, $registry->getFactory($request, $endpoint));
+        self::assertSame($expected, $actual);
     }
 
-    /**
-     * @return void
-     */
     public function testGetFactoryThrowsWhenNoFactorySupportsTheRequest(): void
     {
-        $registry = new RequestBodyFactoryRegistry([$this->factory(false)]);
-
+        $request = $this->createMock(ServiceRequestInterface::class);
         $endpoint = $this->createMock(EndpointInterface::class);
         $endpoint->method('getRequestFormat')->willReturn('unknown');
+        $unsupporting = $this->factory(false);
+        $target = $this->getCut([$unsupporting]);
 
         $this->expectException(LogicException::class);
 
-        $registry->getFactory($this->createMock(ServiceRequestInterface::class), $endpoint);
+        $target->getFactory($request, $endpoint);
     }
 
     /**
-     * @param bool $supports
-     *
-     * @return RequestBodyFactoryInterface
+     * @param RequestBodyFactoryInterface[] $factories
      */
+    private function getCut(array $factories): RequestBodyFactoryRegistry
+    {
+        return new RequestBodyFactoryRegistry($factories);
+    }
+
     private function factory(bool $supports): RequestBodyFactoryInterface
     {
         $factory = $this->createMock(RequestBodyFactoryInterface::class);

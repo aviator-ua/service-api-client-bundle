@@ -18,6 +18,10 @@ use Psr\Http\Message\StreamInterface;
 /**
  * Uses the request verbatim as the body when it already is a PSR-7 stream
  * (e.g. a whole-body binary upload).
+ *
+ * Endpoints declared with `requestFormat: multipart` are excluded: their declared
+ * format wins, so the DTO goes to the multipart body factory and the body matches
+ * the multipart Content-Type visitor keyed on that format.
  */
 class StreamRequestBodyFactory implements RequestBodyFactoryInterface
 {
@@ -26,7 +30,8 @@ class StreamRequestBodyFactory implements RequestBodyFactoryInterface
      */
     public function supports(ServiceRequestInterface $serviceRequest, EndpointInterface $endpoint): bool
     {
-        return $serviceRequest instanceof StreamInterface;
+        return $serviceRequest instanceof StreamInterface
+            && EndpointInterface::FORMAT_MULTIPART !== $endpoint->getRequestFormat();
     }
 
     /**

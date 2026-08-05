@@ -11,18 +11,19 @@ declare(strict_types=1);
 
 namespace Auto1\ServiceAPIClientBundle\Service\Request\Visitor;
 
+use Auto1\ServiceAPIClientBundle\Service\Request\Multipart\MultipartStream;
 use Auto1\ServiceAPIComponentsBundle\Exception\Request\MalformedRequestException;
 use Psr\Http\Message\RequestInterface;
-use Psr\Http\Message\StreamInterface;
 
 /**
  * Sets `Content-Type: multipart/form-data; boundary=<boundary>`.
  *
- * The boundary is recovered from the body itself: a multipart body always begins
- * with `--<boundary>\r\n`, so there is no shared state between the body builder
- * and this visitor. A body the boundary cannot be read from is an error — sending
- * a multipart request without a Content-Type boundary would only produce an opaque
- * 4xx on the server side.
+ * The boundary is taken from the body's `boundary` stream metadata (set by the
+ * multipart stream factory via {@see MultipartStream}), so the body is never read
+ * and does not need to be seekable. A body-less request (e.g. strict mode with a
+ * GET endpoint) is passed through untouched; a non-empty body without a boundary
+ * is an error — sending a multipart request without a Content-Type boundary would
+ * only produce an opaque 4xx on the server side.
  */
 class MultipartContentTypeRequestVisitor implements RequestVisitorInterface
 {
@@ -30,57 +31,27 @@ class MultipartContentTypeRequestVisitor implements RequestVisitorInterface
     private const MEDIA_TYPE = 'multipart/form-data';
 
     /**
-     * Bytes peeked from the head of the body to read the leading boundary line.
-     */
-    private const HEAD_BYTES = 512;
-
-    /**
      * {@inheritdoc}
      */
     public function visit(RequestInterface $request): RequestInterface
     {
-        $boundary = $this->extractBoundary($request->getBody());
+        $body = $request->getBody();
+        $boundary = $body->getMetadata(MultipartStream::METADATA_BOUNDARY);
+
+        if (!is_string($boundary) || '' === $boundary) {
+            if (0 === $body->getSize()) {
+                return $request;
+            }
+
+            throw new MalformedRequestException(
+                'multipart/form-data request body does not expose its boundary as stream metadata;'
+                . ' expected a body built by the multipart stream factory.'
+            );
+        }
 
         return $request->withHeader(
             self::HEADER_NAME,
             sprintf('%s; boundary=%s', self::MEDIA_TYPE, $boundary)
         );
-    }
-
-    /**
-     * @param StreamInterface $body
-     *
-     * @return string
-     */
-    private function extractBoundary(StreamInterface $body): string
-    {
-        if (!$body->isSeekable()) {
-            throw new MalformedRequestException(
-                'multipart/form-data request body is not seekable, the boundary cannot be read from it.'
-            );
-        }
-
-        $body->rewind();
-        $head = $body->read(self::HEAD_BYTES);
-        $body->rewind();
-
-        if (0 !== strncmp($head, '--', 2)) {
-            throw new MalformedRequestException(
-                'multipart/form-data request body does not start with "--<boundary>"; '
-                . 'expected a body built by the multipart stream factory.'
-            );
-        }
-
-        $end = strpos($head, "\r\n");
-        if (false === $end) {
-            $end = strpos($head, "\n");
-        }
-        if (false === $end) {
-            throw new MalformedRequestException(
-                'multipart/form-data request body has no line break after the leading boundary.'
-            );
-        }
-
-        return substr($head, 2, $end - 2);
     }
 }

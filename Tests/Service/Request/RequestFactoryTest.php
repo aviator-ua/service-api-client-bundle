@@ -99,7 +99,7 @@ class RequestFactoryTest extends TestCase
     /**
      * @return RequestFactory
      */
-    private function createRequestFactory(bool $strictModeEnabled = false): RequestFactory
+    private function getCut(bool $strictModeEnabled = false): RequestFactory
     {
         return new RequestFactory(
             $this->endpointRegistryProphecy->reveal(),
@@ -117,6 +117,7 @@ class RequestFactoryTest extends TestCase
      */
     public function testBuildFlow()
     {
+        $serviceRequest = $this->serviceRequestProphecy->reveal();
         $baseUrl = 'baseUrl';
         $routeString = 'routeString';
         $requestMethod = 'GET';
@@ -147,18 +148,18 @@ class RequestFactoryTest extends TestCase
         $request = $requestProphecy->reveal();
 
         $this->endpointRegistryProphecy
-            ->getEndpoint($this->serviceRequestProphecy->reveal())
+            ->getEndpoint($serviceRequest)
             ->willReturn($endpoint)
             ->shouldBeCalled()
         ;
 
         $this->requestBodyFactoryProphecy
-            ->create($this->serviceRequestProphecy->reveal(), $endpoint)
+            ->create($serviceRequest, $endpoint)
             ->willReturn($requestBody)
             ->shouldBeCalled()
         ;
         $this->requestBodyFactoryRegistryProphecy
-            ->getFactory($this->serviceRequestProphecy->reveal(), $endpoint)
+            ->getFactory($serviceRequest, $endpoint)
             ->willReturn($this->requestBodyFactoryProphecy->reveal())
             ->shouldBeCalled()
         ;
@@ -199,10 +200,11 @@ class RequestFactoryTest extends TestCase
             ->shouldBeCalledTimes(2)
         ;
 
-        self::assertInstanceOf(
-            RequestInterface::class,
-            $this->createRequestFactory()->create($this->serviceRequestProphecy->reveal())
-        );
+        $target = $this->getCut();
+
+        $httpRequest = $target->create($serviceRequest);
+
+        self::assertInstanceOf(RequestInterface::class, $httpRequest);
     }
 
     /**
@@ -294,10 +296,11 @@ class RequestFactoryTest extends TestCase
             ->shouldNotBeCalled()
         ;
 
-        self::assertInstanceOf(
-            RequestInterface::class,
-            $this->createRequestFactory()->create($serviceRequest)
-        );
+        $target = $this->getCut();
+
+        $httpRequest = $target->create($serviceRequest);
+
+        self::assertInstanceOf(RequestInterface::class, $httpRequest);
     }
 
     /**
@@ -305,8 +308,7 @@ class RequestFactoryTest extends TestCase
      */
     public function testBuildFlowValidationFailsOnUnmappedRequestArguments()
     {
-        $this->expectException(InvalidArgumentException::class);
-
+        $serviceRequest = $this->serviceRequestProphecy->reveal();
         $baseUrl = 'baseUrl';
         $routeString = 'routeString\{invalidArgument}';
 
@@ -322,15 +324,16 @@ class RequestFactoryTest extends TestCase
         $endpoint = $endpointProphecy->reveal();
 
         $this->endpointRegistryProphecy
-            ->getEndpoint($this->serviceRequestProphecy->reveal())
+            ->getEndpoint($serviceRequest)
             ->willReturn($endpoint)
             ->shouldBeCalled()
         ;
 
-        self::assertInstanceOf(
-            RequestInterface::class,
-            $this->createRequestFactory()->create($this->serviceRequestProphecy->reveal())
-        );
+        $target = $this->getCut();
+
+        $this->expectException(InvalidArgumentException::class);
+
+        $target->create($serviceRequest);
     }
 
     /**
@@ -434,14 +437,16 @@ class RequestFactoryTest extends TestCase
             ->shouldNotBeCalled()
         ;
 
-        $this->assertInstanceOf(
-            RequestInterface::class,
-            $this->createRequestFactory()->create($serviceRequest)
-        );
+        $target = $this->getCut();
+
+        $httpRequest = $target->create($serviceRequest);
+
+        self::assertInstanceOf(RequestInterface::class, $httpRequest);
     }
 
     public function testBuildFlowSkipsBodyForBodilessMethodInStrictMode(): void
     {
+        $serviceRequest = $this->serviceRequestProphecy->reveal();
         $baseUrl = 'baseUrl';
         $routeString = 'routeString';
         $requestMethod = 'GET';
@@ -470,7 +475,7 @@ class RequestFactoryTest extends TestCase
         $request = $requestProphecy->reveal();
 
         $this->endpointRegistryProphecy
-            ->getEndpoint($this->serviceRequestProphecy->reveal())
+            ->getEndpoint($serviceRequest)
             ->willReturn($endpoint)
             ->shouldBeCalled()
         ;
@@ -509,9 +514,10 @@ class RequestFactoryTest extends TestCase
             ->shouldBeCalled()
         ;
 
-        self::assertInstanceOf(
-            RequestInterface::class,
-            $this->createRequestFactory(true)->create($this->serviceRequestProphecy->reveal())
-        );
+        $target = $this->getCut(true);
+
+        $httpRequest = $target->create($serviceRequest);
+
+        self::assertInstanceOf(RequestInterface::class, $httpRequest);
     }
 }

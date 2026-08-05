@@ -18,59 +18,84 @@ use Psr\Log\NullLogger;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 
-/**
- * Class LoggerFallbackCompilerPassTest.
- */
 class LoggerFallbackCompilerPassTest extends TestCase
 {
-    /**
-     * @var LoggerFallbackCompilerPass
-     */
-    private $pass;
+    private const TARGET_ALIAS = 'auto1.api.logger';
+    private const TARGET_NULL_LOGGER_ID = 'auto1.api.logger.null';
+    private const TARGET_LOGGER_ID = 'logger';
+    private const TARGET_APP_LOGGER_ID = 'app.custom_logger';
 
-    /**
-     * {@inheritdoc}
-     */
-    protected function setUp(): void
-    {
-        $this->pass = new LoggerFallbackCompilerPass();
-    }
-
-    /**
-     * @return void
-     */
     public function testProcessRepointsTheAliasToTheApplicationLoggerWhenPresent(): void
     {
         $container = $this->containerWithDefaultAlias();
-        $container->setDefinition('logger', new Definition(LoggerInterface::class));
+        $loggerDefinition = new Definition(LoggerInterface::class);
+        $container->setDefinition(self::TARGET_LOGGER_ID, $loggerDefinition);
+        $target = $this->getCut();
 
-        $this->pass->process($container);
+        $target->process($container);
 
-        self::assertSame('logger', (string) $container->getAlias('auto1.api.logger'));
+        $alias = (string) $container->getAlias(self::TARGET_ALIAS);
+        self::assertSame(self::TARGET_LOGGER_ID, $alias);
     }
 
-    /**
-     * @return void
-     */
     public function testProcessKeepsTheNullLoggerFallbackWhenNoApplicationLoggerExists(): void
     {
         $container = $this->containerWithDefaultAlias();
+        $target = $this->getCut();
 
-        $this->pass->process($container);
+        $target->process($container);
 
-        self::assertSame('auto1.api.logger.null', (string) $container->getAlias('auto1.api.logger'));
+        $alias = (string) $container->getAlias(self::TARGET_ALIAS);
+        self::assertSame(self::TARGET_NULL_LOGGER_ID, $alias);
+    }
+
+    public function testProcessKeepsAnApplicationOverrideOfTheAlias(): void
+    {
+        $container = $this->containerWithDefaultAlias();
+        $loggerDefinition = new Definition(LoggerInterface::class);
+        $container->setDefinition(self::TARGET_LOGGER_ID, $loggerDefinition);
+        $appLoggerDefinition = new Definition(LoggerInterface::class);
+        $container->setDefinition(self::TARGET_APP_LOGGER_ID, $appLoggerDefinition);
+        $container->setAlias(self::TARGET_ALIAS, self::TARGET_APP_LOGGER_ID);
+        $target = $this->getCut();
+
+        $target->process($container);
+
+        $alias = (string) $container->getAlias(self::TARGET_ALIAS);
+        self::assertSame(self::TARGET_APP_LOGGER_ID, $alias);
+    }
+
+    public function testProcessKeepsAnApplicationRedefinitionOfTheServiceId(): void
+    {
+        $container = $this->containerWithDefaultAlias();
+        $loggerDefinition = new Definition(LoggerInterface::class);
+        $container->setDefinition(self::TARGET_LOGGER_ID, $loggerDefinition);
+        $appLoggerDefinition = new Definition(LoggerInterface::class);
+        $container->removeAlias(self::TARGET_ALIAS);
+        $container->setDefinition(self::TARGET_ALIAS, $appLoggerDefinition);
+        $target = $this->getCut();
+
+        $target->process($container);
+
+        self::assertFalse($container->hasAlias(self::TARGET_ALIAS));
+        $definition = $container->getDefinition(self::TARGET_ALIAS);
+        self::assertSame($appLoggerDefinition, $definition);
+    }
+
+    private function getCut(): LoggerFallbackCompilerPass
+    {
+        return new LoggerFallbackCompilerPass();
     }
 
     /**
      * Mirrors the default wiring from services.yml.
-     *
-     * @return ContainerBuilder
      */
     private function containerWithDefaultAlias(): ContainerBuilder
     {
         $container = new ContainerBuilder();
-        $container->setDefinition('auto1.api.logger.null', new Definition(NullLogger::class));
-        $container->setAlias('auto1.api.logger', 'auto1.api.logger.null');
+        $nullLoggerDefinition = new Definition(NullLogger::class);
+        $container->setDefinition(self::TARGET_NULL_LOGGER_ID, $nullLoggerDefinition);
+        $container->setAlias(self::TARGET_ALIAS, self::TARGET_NULL_LOGGER_ID);
 
         return $container;
     }

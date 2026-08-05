@@ -16,10 +16,10 @@ use Auto1\ServiceAPIComponentsBundle\Service\Endpoint\EndpointInterface;
 use Auto1\ServiceAPIRequest\ServiceRequestInterface;
 
 /**
- * Builds a streaming multipart/form-data body for endpoints with
- * `requestFormat: multipart`. Like the rest of the request building, it relies on
- * a PSR-17 stream factory discovered via `Psr17FactoryDiscovery`, so a PSR-7
- * implementation must be installed.
+ * Builds a multipart/form-data body for endpoints with `requestFormat: multipart`.
+ * Like the rest of the request building, it relies on a PSR-17 stream factory
+ * discovered via `Psr17FactoryDiscovery`, so a PSR-7 implementation must be
+ * installed.
  */
 class MultipartRequestBodyFactory implements RequestBodyFactoryInterface
 {

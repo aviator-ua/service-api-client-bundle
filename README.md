@@ -41,8 +41,9 @@ The request body is built by services tagged with `auto1.api.request_body_factor
 (implementing `RequestBodyFactoryInterface`). They are resolved first-match by
 descending tag `priority`, so a new request format can be supported by adding a
 tagged service without changing the request factory. The bundle ships factories
-for raw PSR-7 streams, `multipart/form-data`, and a default that serializes by
-the endpoint's `requestFormat` (`json`, `url`, ...).
+for raw PSR-7 streams (except on `multipart` endpoints, where the declared
+format wins), `multipart/form-data`, and a default that serializes by the
+endpoint's `requestFormat` (`json`, `url`, ...).
 
 ## Logging
 The bundle logs through the `psr/log` abstraction and uses the application's
@@ -98,7 +99,10 @@ from the stream metadata (`filename` / `mime-type`), falling back to the field
 name and `application/octet-stream`. Other fields are serialized through the
 request normalizer (so dates and value objects are formatted the same way as for
 other formats) and nested objects/arrays are flattened into `name[child]` field
-names. A stream nested inside an object is not detected as a file part.
+names. Fields are enumerated through the serializer's class metadata, so private
+properties inherited from a parent class are included. A stream nested inside an
+object is not detected as a file part. The body is buffered into a temporary
+stream when the request is built, not streamed lazily from the source streams.
 
 This requires a PSR-7 implementation (e.g. `nyholm/psr7` or `guzzlehttp/psr7`) to
 be installed; the bundle discovers its PSR-17 factories automatically.
